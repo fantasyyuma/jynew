@@ -99,6 +99,9 @@ public class BattleManager : MonoBehaviour
         if (!BattleboxHelper.Instance.CanEnterBattle(tempView.transform.position)) return;
 
         IsInBattle = true;
+        
+        LevelMaster.Instance.UpdateMobileControllerUI();
+        
         m_battleParams = customParams;
         //初始化战斗model
         m_BattleModel = new BattleFieldModel();
@@ -159,7 +162,7 @@ public class BattleManager : MonoBehaviour
                 //---------------------------------------------------------------------------
                 //特定位置的翻译【战斗胜利的提示】
                 //---------------------------------------------------------------------------
-                GameUtil.ShowFullSuggest(bonusText, "<color=yellow><size=50>战斗胜利</size></color>".GetContent(nameof(BattleManager)), delegate
+                GameUtil.ShowFullSuggest(bonusText, "<color=yellow>战斗胜利</color>".GetContent(nameof(BattleManager)), delegate
                 {
                     EndBattle();
                     m_battleParams.callback?.Invoke(result);
@@ -184,7 +187,7 @@ public class BattleManager : MonoBehaviour
                 //---------------------------------------------------------------------------
                 //特定位置的翻译【战斗失败的提示】
                 //---------------------------------------------------------------------------
-                GameUtil.ShowFullSuggest("胜败乃兵家常事，请大侠重新来过。".GetContent(nameof(BattleManager)), "<color=red><size=80>战斗失败！</size></color>".GetContent(nameof(BattleManager)), delegate
+                GameUtil.ShowFullSuggest("胜败乃兵家常事，请大侠重新来过。".GetContent(nameof(BattleManager)), "<color=red>战斗失败！</color>".GetContent(nameof(BattleManager)), delegate
                 {
                     EndBattle();
                     m_battleParams.callback?.Invoke(result);
@@ -268,34 +271,33 @@ public class BattleManager : MonoBehaviour
     string CalExpGot(Jyx2ConfigBattle battleData)
     {
         List<RoleInstance> alive_teammate = m_BattleModel.Teammates;
-        List<RoleInstance> dead_teammates = m_BattleModel.Dead.Where(r => r.team == 0).ToList();
-        List<RoleInstance> teammates = alive_teammate.Union(dead_teammates).ToList();
-        string rst = "";
+        var dead_teammates = m_BattleModel.Dead.Where(r => r.team == 0);
+        var all_teammates = alive_teammate.Union(dead_teammates);
+        var bonusTextBuilder = new System.Text.StringBuilder();
+
         foreach (var role in alive_teammate)
         {
-            int expAdd = battleData.Exp / alive_teammate.Count();
+            int expAdd = battleData.Exp / alive_teammate.Count;
             role.ExpGot += expAdd;
         }
 
-        foreach (var role in teammates)
+        foreach (var role in all_teammates)
         {
             if (role.ExpGot > 0)
+            {
                 //---------------------------------------------------------------------------
                 //rst += string.Format("{0}获得经验{1}\n", role.Name, role.ExpGot);
                 //---------------------------------------------------------------------------
                 //特定位置的翻译【战斗胜利角色获得经验的提示】
                 //---------------------------------------------------------------------------
-                rst += string.Format("{0}获得经验{1}\n".GetContent(nameof(BattleManager)), role.Name, role.ExpGot);
+                bonusTextBuilder.AppendFormat("{0}获得经验{1}\n".GetContent(nameof(BattleManager)), role.Name, role.ExpGot);
                 //---------------------------------------------------------------------------
                 //---------------------------------------------------------------------------
+                role.Exp += role.ExpGot;
 
-            var practiseItem = role.GetXiulianItem();
-            var isWugongCanUpgrade = practiseItem != null && !(practiseItem.Skill != null && role.GetWugongLevel(practiseItem.Skill.Id)>= 10);
-
-            role.Exp += role.ExpGot;
-
-            //避免越界
-            role.Exp = Tools.Limit(role.Exp, 0, GameConst.MAX_EXP);
+                //避免越界
+                role.Exp = Tools.Limit(role.Exp, 0, GameConst.MAX_EXP);
+            }
       
 
             //升级
@@ -304,64 +306,63 @@ public class BattleManager : MonoBehaviour
             {
                 role.LevelUp();
                 change++;
-                //---------------------------------------------------------------------------
-                //rst += $"{role.Name}升级了！等级{role.Level}\n";
-                //---------------------------------------------------------------------------
-                //特定位置的翻译【战斗胜利角色升级的提示】
-                //---------------------------------------------------------------------------
-                rst += string.Format("{0}升级了！等级{1}\n".GetContent(nameof(BattleManager)), role.Name, role.Level);
-                //---------------------------------------------------------------------------
-                //---------------------------------------------------------------------------
+                if (change == 1)
+                {
+                    //---------------------------------------------------------------------------
+                    //rst = $"{role.Name}升级了！\n";
+                    //---------------------------------------------------------------------------
+                    //特定位置的翻译【战斗胜利角色升级的提示】
+                    //---------------------------------------------------------------------------
+                    bonusTextBuilder.AppendFormat("{0}升级了！\n".GetContent(nameof(BattleManager)), role.Name);
+                    //---------------------------------------------------------------------------
+                    //---------------------------------------------------------------------------
+                }
             }
 
             //TODO：升级的展示
-
+            var practiseItem = role.GetXiulianItem();
             if (practiseItem != null)
             {
+                //武功修炼的经验为人物获得经验的0.8倍
                 role.ExpForItem += role.ExpGot * 8 / 10;
                 role.ExpForMakeItem += role.ExpGot * 8 / 10;
 
                 role.ExpForItem = Tools.Limit(role.ExpForItem, 0, GameConst.MAX_EXP);
                 role.ExpForMakeItem = Tools.Limit(role.ExpForMakeItem, 0, GameConst.MAX_EXP);
 
-                change = 0;
-
+                bool isWugongCanUpgrade = role.GetWugongLevel(practiseItem.Skill) < GameConst.MAX_WUGONG_LEVEL;
                 //修炼秘籍
                 while (role.CanFinishedItem() && isWugongCanUpgrade)
                 {
                     role.UseItem(practiseItem);
-                    change++;
                     //---------------------------------------------------------------------------
                     //rst += $"{role.Name} 修炼 {practiseItem.Name} 成功\n";
                     //---------------------------------------------------------------------------
                     //特定位置的翻译【战斗胜利角色修炼武功提示】
                     //---------------------------------------------------------------------------
-                    rst += string.Format("{0} 修炼 {1} 成功\n".GetContent(nameof(BattleManager)), role.Name, practiseItem.Name);
+                    bonusTextBuilder.AppendFormat("{0} 修炼 {1} 成功\n".GetContent(nameof(BattleManager)), role.Name, practiseItem.Name);
                     //---------------------------------------------------------------------------
                     //---------------------------------------------------------------------------
-                    if (practiseItem.Skill != null)
+                    var level = role.GetWugongLevel(practiseItem.Skill);
+                    if (level > 1)
                     {
-                        var level = role.GetWugongLevel(practiseItem.Skill.Id);
-                        if (level > 1)
-                        {
-                            //---------------------------------------------------------------------------
-                            //rst += string.Format("{0} 升为 ", practiseItem.SkillCast.Name) + level.ToString() + " 级\n";
-                            //---------------------------------------------------------------------------
-                            //特定位置的翻译【战斗胜利角色修炼武功升级提示】
-                            //---------------------------------------------------------------------------
-                            rst += string.Format("{0} 升为 {1}级\n".GetContent(nameof(BattleManager)), practiseItem.Skill.Name, level.ToString());
-                            //---------------------------------------------------------------------------
-                            //---------------------------------------------------------------------------
-                        }
+                        //---------------------------------------------------------------------------
+                        //rst += string.Format("{0} 升为 ", practiseItem.SkillCast.Name) + level.ToString() + " 级\n";
+                        //---------------------------------------------------------------------------
+                        //特定位置的翻译【战斗胜利角色修炼武功升级提示】
+                        //---------------------------------------------------------------------------
+                        bonusTextBuilder.AppendFormat("{0} 升为 {1}级\n".GetContent(nameof(BattleManager)), GameConfigDatabase.Instance.Get<Jyx2ConfigSkill>(practiseItem.Skill).Name, level);
+                        //---------------------------------------------------------------------------
+                        //---------------------------------------------------------------------------
                     }
                 }
 
                 //炼制物品
-                rst += role.LianZhiItem(practiseItem);
+                bonusTextBuilder.Append(role.LianZhiItem(practiseItem));
             }
         }
 
-        return rst;
+        return bonusTextBuilder.ToString();
     }
 
     /// <summary>

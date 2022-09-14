@@ -230,12 +230,12 @@ public class BattleRole : Jyx2AnimationBattleRole
         if (StoryEngine.Instance == null) return;
 
         var hudRoot = StoryEngine.Instance.HUDRoot;
-        HUDTextInfo info = new HUDTextInfo(transform, $"{mainText}")
+        HUDTextInfo info = new HUDTextInfo(transform, mainText)
         {
             Color = textColor,
             Speed = Random.Range(0.2f, 1),
             VerticalAceleration = Random.Range(-2, 2f),
-            VerticalPositionOffset = Random.Range(0, 0.8f),
+            VerticalPositionOffset = Random.Range(0, 1.2f),
             VerticalFactorScale = Random.Range(1.2f, 10),
             Side = (Random.Range(0, 2) == 1) ? bl_Guidance.LeftDown : bl_Guidance.RightDown,
             ExtraDelayTime = 0.2f,
@@ -515,7 +515,7 @@ public class BattleRole : Jyx2AnimationBattleRole
 
     private async void Start()
     {
-        await BeforeSceneLoad.loadFinishTask;
+        await RuntimeEnvSetup.Setup();
         
         //场景没有LevelMaster
         if (LevelMaster.Instance == null && DataInstance == null) this.CreateRoleInstance(m_RoleKey);

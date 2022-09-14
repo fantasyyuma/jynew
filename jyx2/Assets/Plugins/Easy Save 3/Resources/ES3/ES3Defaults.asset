@@ -35,7 +35,7 @@ MonoBehaviour:
     - Assembly-CSharp-firstpass
     - UniTask.Linq
     - Cinemachine
-    - GPUInstancer
+    - com.rlabrecque.steamworks.net
     - MTE_script
     - Animancer.Examples
     - LeanCommon
@@ -51,8 +51,8 @@ MonoBehaviour:
     - UniTask.Addressables
     - XNodeEditor
     - Sirenix.OdinInspector.CompatibilityLayer.Editor
-    - GPUInstancer.Editor
     - UniTask.Editor
+    - com.rlabrecque.steamworks.net.editor
     - Analytics
     showAdvancedSettings: 0
   addMgrToSceneAutomatically: 0

@@ -17,12 +17,13 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
+using Jyx2.EventsGraph;
 using Jyx2.MOD;
 using Jyx2.Middleware;
+using Jyx2.ResourceManagement;
 using Jyx2Configs;
 using ProtoBuf;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
@@ -57,44 +58,36 @@ public static class Jyx2ResourceHelper
         }
 
         _isInited = true;
-        
-#if UNITY_EDITOR
-        if (File.Exists(Path.Combine(Application.streamingAssetsPath, "OverrideList.txt"))) ;
-            File.Delete(Path.Combine(Application.streamingAssetsPath, "OverrideList.txt"));
-        MODLoader.SaveOverrideList("Assets/BuildSource/Skills", ".asset");
-        MODLoader.SaveOverrideList("Assets/BuildSource/Configs/Characters", ".asset");
-        MODLoader.SaveOverrideList("Assets/BuildSource/Configs/Items", ".asset");
-        MODLoader.SaveOverrideList("Assets/BuildSource/Configs/Skills", ".asset");
-        MODLoader.SaveOverrideList("Assets/BuildSource/Configs/Shops", ".asset");
-        MODLoader.SaveOverrideList("Assets/BuildSource/Configs/Maps", ".asset");
-        MODLoader.SaveOverrideList("Assets/BuildSource/Configs/Battles", ".asset");
-        MODLoader.SaveOverrideList("Assets/BuildSource/Lua", ".lua");
-#endif
 
-        await MODLoader.Init();
-        
-        //全局配置表
-        var t = await MODLoader.LoadAsset<GlobalAssetConfig>("Assets/BuildSource/Configs/GlobalAssetConfig.asset");
-        if (t != null)
+        //模型池
+        var allModels = await ResLoader.LoadAssets<ModelAsset>("Assets/Models/");
+        if (allModels != null)
         {
-            GlobalAssetConfig.Instance = t;
-            t.OnLoad();
+            ModelAsset.All = allModels;
         }
-
+        
         //技能池
-        var overridePaths = await MODLoader.LoadOverrideList("Assets/BuildSource/Skills");
-        var task = await MODLoader.LoadAssets<Jyx2SkillDisplayAsset>(overridePaths);
-        if (task != null)
+        var allSkills = await ResLoader.LoadAssets<Jyx2SkillDisplayAsset>("Assets/Skills/");
+        if (allSkills != null)
         {
-            Jyx2SkillDisplayAsset.All = task;
+            Jyx2SkillDisplayAsset.All = allSkills;
         }
 
         //基础配置表
-        await GameConfigDatabase.Instance.Init();
-
+        var config = await ResLoader.LoadAsset<TextAsset>($"Assets/Configs/Datas.bytes");
+        GameConfigDatabase.Instance.Init(config.bytes);
+        
+        //初始化基础配置
+        GameSettings.Refresh();
+        
         //lua
         await LuaManager.InitLuaMapper();
-        LuaManager.Init();
+        
+        //执行lua根文件
+        LuaManager.Init(GlobalAssetConfig.Instance.rootLuaFile.text);
+        
+        //如果有热更新文件，执行热更新
+        LuaManager.PreloadLua();
     }
 
     public static GameObject GetCachedPrefab(string path)
@@ -123,45 +116,15 @@ public static class Jyx2ResourceHelper
     public static async UniTask<SceneCoordDataSet> GetSceneCoordDataSet(string sceneName)
     {
         string path = $"{ConStr.BattleBlockDatasetPath}{sceneName}_coord_dataset.bytes";
-        var result = await MODLoader.LoadAsset<TextAsset>(path);
+        var result = await ResLoader.LoadAsset<TextAsset>(path);
         using var memory = new MemoryStream(result.bytes);
         return Serializer.Deserialize<SceneCoordDataSet>(memory);
-    }
-
-    [Obsolete("待修改为tilemap")]
-    public static async UniTask<BattleboxDataset> GetBattleboxDataset(string fullPath)
-    {
-        var result = await MODLoader.LoadAsset<TextAsset>(fullPath);
-        using var memory = new MemoryStream(result.bytes);
-        return Serializer.Deserialize<BattleboxDataset>(memory);
     }
 
     public static async UniTask<Jyx2NodeGraph> LoadEventGraph(int id)
     {
         string url = $"Assets/BuildSource/EventsGraph/{id}.asset";
-        var rst = await Addressables.LoadResourceLocationsAsync(url).Task;
-        if (rst.Count == 0)
-        {
-            return null;
-        }
 
-        return await MODLoader.LoadAsset<Jyx2NodeGraph>(url);
-    }
-    
-    //根据Addressable的Ref查找他实际存储的路径
-    public static string GetAssetRefAddress(AssetReference reference, Type type)
-    {
-        foreach (var locator in Addressables.ResourceLocators)
-        {
-            if (locator.Locate(reference.AssetGUID, type, out var locs))
-            {
-                foreach (var loc in locs)
-                {
-                    return loc.ToString();
-                }
-            }
-        }
-
-        return "";
+        return await ResLoader.LoadAsset<Jyx2NodeGraph>(url);
     }
 }

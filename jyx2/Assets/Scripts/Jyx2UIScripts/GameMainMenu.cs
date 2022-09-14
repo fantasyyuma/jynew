@@ -11,6 +11,7 @@ using UnityEngine;
 using Jyx2;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using i18n.TranslatorDef;
 using Jyx2.Middleware;
 using UnityEngine.UI;
@@ -20,6 +21,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Linq;
 using Cysharp.Threading.Tasks;
+using Jyx2.ResourceManagement;
 
 public partial class GameMainMenu : Jyx2_UIBase
 {
@@ -34,20 +36,36 @@ public partial class GameMainMenu : Jyx2_UIBase
 
 	private PanelType m_panelType;
 
-	private int main_menu_index = 0;
+	private int main_menu_index => current_selection;
 
 	private const int NewGameIndex = 0;
 	private const int LoadGameIndex = 1;
-	private const int QuitGameIndex = 2;
+	private const int SettingsIndex = 2;
+	private const int QuitGameIndex = 3;
+
+	private string m_newName;
 
 	async void OnStart()
 	{
+		MainMenuTitles.SetActive(false);
 		//显示loading
 		var c = StartCoroutine(ShowLoading());
-		await BeforeSceneLoad.loadFinishTask;
 		StopCoroutine(c);
+		await RuntimeEnvSetup.Setup();
+		
 		LoadingText.gameObject.SetActive(false);
 		homeBtnAndTxtPanel_RectTransform.gameObject.SetActive(true);
+
+		var res = await ResLoader.LoadAsset<GameObject>("MainMenuBg.prefab");
+		if (res != null)
+		{
+			var newMainMenuBg = Instantiate(res, this.transform, false);
+			newMainMenuBg.transform.SetAsFirstSibling();
+		}
+		else
+		{
+			MainMenuTitles.gameObject.SetActive(true);
+		}
 
 		JudgeShowReleaseNotePanel();
 	}
@@ -172,7 +190,7 @@ public partial class GameMainMenu : Jyx2_UIBase
 		{
 			if (m_panelType == PanelType.NewGamePage)
 			{
-				OnCreateBtnClicked();
+				onButtonClick(); //OnCreateBtnClicked();
 			}
 		});
 		GlobalHotkeyManager.Instance.RegistHotkey(this, KeyCode.Y, () =>
@@ -226,6 +244,9 @@ public partial class GameMainMenu : Jyx2_UIBase
 			else if (main_menu_index == LoadGameIndex)
 			{
 				OnLoadGameClicked();
+			}else if (main_menu_index == SettingsIndex)
+			{
+				OpenSettingsPanel();
 			}
 			else if (main_menu_index == QuitGameIndex)
 			{
@@ -260,9 +281,25 @@ public partial class GameMainMenu : Jyx2_UIBase
 		//---------------------------------------------------------------------------
 		await Jyx2_UIManager.Instance.ShowUIAsync(nameof(SavePanel), new Action<int>((index) =>
 		{
-			if (!StoryEngine.DoLoadGame(index) && m_panelType == PanelType.LoadGamePage)
+			var summary = GameSaveSummary.Load(index);
+			if (summary.ModId != null && !summary.ModId.Equals(RuntimeEnvSetup.CurrentModId))
 			{
-				OnNewGame();
+				List<string> selectionContent = new List<string>() {"是(Y)", "否(N)"};
+				string msg = "该存档MOD不匹配，载入可能导致数据错乱，是否继续？";
+				Jyx2_UIManager.Instance.ShowUIAsync(nameof(ChatUIPanel), ChatType.Selection, "0", msg, selectionContent, new Action<int>((index) =>
+				{
+					if (index == 0)
+					{
+						StoryEngine.DoLoadGame(index);
+					}
+				})).Forget();
+			}
+			else
+			{
+				if (!StoryEngine.DoLoadGame(index) && m_panelType == PanelType.LoadGamePage)
+				{
+					OnNewGame();
+				}
 			}
 		}), "选择读档位".GetContent(nameof(GameMainMenu)), new Action(() =>
 		 {
@@ -274,25 +311,37 @@ public partial class GameMainMenu : Jyx2_UIBase
 
 	public void OnQuitGameClicked()
 	{
+#if UNITY_EDITOR
+		UnityEditor.EditorApplication.isPlaying = false;
+#else
 		Application.Quit();
+#endif
 	}
 
-	public void OnCreateBtnClicked()
+	private void setPlayerName()
 	{
-		string newName = this.NameInput_InputField.text;
-
 		//todo:去掉特殊符号
-		if (string.IsNullOrWhiteSpace(newName))
+		if (string.IsNullOrWhiteSpace(m_newName))
 			return;
 
 		m_panelType = PanelType.PropertyPage;
 		//todo:给玩家提示
 		RoleInstance role = GameRuntimeData.Instance.Player;
-		role.Name = newName;
+		role.Name = m_newName;
+		m_randomProperty.ShowComponent();
+		DoGeneratePlayerRole();
+	}
 
+	public void OnCreateBtnClicked()
+	{
+		if (m_newName == null)
+		{
+			m_newName = this.NameInput_InputField.text;
+		}
+		setPlayerName();
+		
 		this.InputNamePanel_RectTransform.gameObject.SetActive(false);
 		this.StartNewRolePanel_RectTransform.gameObject.SetActive(true);
-		m_randomProperty.ShowComponent();
 		// generate random property at randomP panel first show
 		// added by eaphone at 2021/05/23
 		OnCreateRoleNoClick();
@@ -300,19 +349,32 @@ public partial class GameMainMenu : Jyx2_UIBase
 
 	void OnNewGame()
 	{
-		var runtime = GameRuntimeData.CreateNew();
+		GameRuntimeData.CreateNew();
 
 		m_panelType = PanelType.NewGamePage;
 		this.homeBtnAndTxtPanel_RectTransform.gameObject.SetActive(false);
-		this.InputNamePanel_RectTransform.gameObject.SetActive(true);
-		NameInput_InputField.ActivateInputField();
+
+		Debug.Log(RuntimeEnvSetup.CurrentModConfig.PlayerName);
+		if (!string.IsNullOrEmpty(RuntimeEnvSetup.CurrentModConfig.PlayerName))
+		{
+			m_newName = RuntimeEnvSetup.CurrentModConfig.PlayerName;
+			setPlayerName();
+			this.StartNewRolePanel_RectTransform.gameObject.SetActive(true);
+		}
+		else
+		{
+			this.InputNamePanel_RectTransform.gameObject.SetActive(true);
+			NameInput_InputField.ActivateInputField();
+		}
 	}
 
 	private void RegisterEvent()
 	{
 		BindListener(this.NewGameButton_Button, OnNewGameClicked);
 		BindListener(this.LoadGameButton_Button, OnLoadGameClicked);
+		BindListener(this.SettingsButton_Button, OpenSettingsPanel);
 		BindListener(this.QuitGameButton_Button, OnQuitGameClicked);
+		
 		BindListener(this.inputSure_Button, OnCreateBtnClicked, false);
 		BindListener(this.inputBack_Button, OnBackBtnClicked, false);
 		BindListener(this.YesBtn_Button, OnCreateRoleYesClick, false);
@@ -331,6 +393,12 @@ public partial class GameMainMenu : Jyx2_UIBase
 		//加载地图
 		var startMap = Jyx2ConfigMap.GetGameStartMap();
 
+		string startTrigger = startMap.GetTagValue("START");
+		if (!string.IsNullOrEmpty(startTrigger))
+		{
+			loadPara.triggerName = startTrigger;
+		}
+		
 		LevelLoader.LoadGameMap(startMap, loadPara, () =>
 		{
 			//首次进入游戏音乐
@@ -354,11 +422,13 @@ public partial class GameMainMenu : Jyx2_UIBase
 		RoleInstance role = GameRuntimeData.Instance.Player;
 		
 		//生成基础属性
-		for (int i = 0; i <= 13; i++)
+		for (int i = 0; i <= 12; i++)
 		{
 			GenerateRamdomPro(role, i, cheating);
 		}
 
+		//特殊
+		GenerateRamdomPro(role, 20, cheating);
 		role.HpInc = cheating ? 7 : Tools.GetRandomInt(3, 7);
 		role.MaxHp = role.HpInc * 3 + 29;
 		int seed = cheating ? 9 : Tools.GetRandomInt(0, 9);
@@ -438,7 +508,7 @@ public partial class GameMainMenu : Jyx2_UIBase
 	/// </summary>
 	public void OpenModPanel()
 	{
-		Jyx2_UIManager.Instance.ShowUIAsync(nameof(ModPanel)).Forget();
+		Jyx2_UIManager.Instance.ShowUIAsync(nameof(ModPanelNew)).Forget();
 	}
 	
 	bool isXSelection = false;

@@ -257,7 +257,7 @@ public partial class XiakeUIPanel : Jyx2_UIBase
 	{
 
 		var curMap = LevelMaster.GetCurrentGameMap();
-		if (!curMap.IsWorldMap())
+		if (!curMap.Tags.Contains("WORLDMAP"))
 		{
 			GameUtil.DisplayPopinfo("必须在大地图才可以角色离队");
 			return;
@@ -291,11 +291,10 @@ public partial class XiakeUIPanel : Jyx2_UIBase
 	{
 		this.gameObject.SetActive(false);
 		var s = new UniTaskCompletionSource();
-		Jyx2.LuaExecutor.Execute("jygame/ka" + story, () =>
-		{
-			s.TrySetResult();
-		});
-		await s.Task;
+
+		var eventPath = string.Format(RuntimeEnvSetup.CurrentModConfig.LuaFilePatten, story);
+
+		await Jyx2.LuaExecutor.Execute(eventPath);
 		this.gameObject.SetActive(true);
 		RefreshView();
 	}
@@ -374,7 +373,7 @@ public partial class XiakeUIPanel : Jyx2_UIBase
 			}
 			else
 			{
-				if (item.NeedCastration) //辟邪剑谱和葵花宝典
+				if (item.NeedCastration == 1) //辟邪剑谱和葵花宝典
 				{
 					await GameUtil.ShowYesOrNoCastrate(m_currentRole, () =>
 					{
@@ -408,15 +407,18 @@ public partial class XiakeUIPanel : Jyx2_UIBase
 			Callback,
 			(item) =>
 			{
-				return (int)item.ItemType == 2 && (runtime.GetItemUser(item.Id) == m_currentRole.GetJyx2RoleId() || runtime.GetItemUser(item.Id) == -1);
+				return (int) item.ItemType == 2 && (runtime.GetItemUser(item.Id) == m_currentRole.GetJyx2RoleId() ||
+				                                    runtime.GetItemUser(item.Id) == -1);
 			},
 			m_currentRole.Xiulianwupin);
 	}
 
 	async UniTask SelectFromBag(Action<int> Callback, Func<Jyx2ConfigItem, bool> filter, int current_itemId)
 	{
+		this.gameObject.SetActive(false);
 		await Jyx2_UIManager.Instance.ShowUIAsync(nameof(BagUIPanel), runtime.Items, new Action<int>((itemId) =>
 		{
+			this.gameObject.SetActive(true);
 			if (itemId != -1 && !m_currentRole.CanUseItem(itemId))
 			{
 				var item = GameConfigDatabase.Instance.Get<Jyx2ConfigItem>(itemId);
@@ -442,6 +444,7 @@ public partial class XiakeUIPanel : Jyx2_UIBase
 		selectParams.isDefaultSelect = false;
 		selectParams.callback = (cbParam) =>
 		{
+			this.gameObject.SetActive(true);
 			StoryEngine.Instance.BlockPlayerControl = false;
 			if (cbParam.isCancelClick == true)
 			{
@@ -461,10 +464,10 @@ public partial class XiakeUIPanel : Jyx2_UIBase
 			{
 				m_currentRole.Tili -= 2;
 			}
-
 			DoRefresh();
 		};
 
+		this.gameObject.SetActive(false);
 		await Jyx2_UIManager.Instance.ShowUIAsync(nameof(SelectRolePanel), selectParams);
 	}
 
@@ -476,6 +479,7 @@ public partial class XiakeUIPanel : Jyx2_UIBase
 		selectParams.isDefaultSelect = false;
 		selectParams.callback = (cbParam) =>
 		{
+			this.gameObject.SetActive(true);
 			StoryEngine.Instance.BlockPlayerControl = false;
 			if (cbParam.isCancelClick == true)
 			{
@@ -495,10 +499,10 @@ public partial class XiakeUIPanel : Jyx2_UIBase
 			{
 				m_currentRole.Tili -= 2;
 			}
-
 			DoRefresh();
 		};
 
+		this.gameObject.SetActive(false);
 		await Jyx2_UIManager.Instance.ShowUIAsync(nameof(SelectRolePanel), selectParams);
 	}
 

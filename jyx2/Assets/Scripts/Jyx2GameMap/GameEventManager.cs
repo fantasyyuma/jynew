@@ -15,7 +15,6 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
 using UnityEngine.UI;
 
 /// <summary>
@@ -177,7 +176,7 @@ public class GameEventManager : MonoBehaviour
     bool TryTrigger(GameEvent evt)
     {
         //直接触发
-        if (!IsNoEvent(evt.m_EnterEventId) && !LuaExecutor.isExcutling())
+        if (!IsNoEvent(evt.m_EnterEventId) && !LuaExecutor.IsExecuting())
         {
             ExecuteJyx2Event(evt.m_EnterEventId);
             return true;
@@ -225,9 +224,6 @@ public class GameEventManager : MonoBehaviour
 
         async UniTask ExecuteCurEvent()
         {
-            //if (curEvent != null)
-            //    await curEvent.MarkChest();
-            
             //先判断是否有蓝图类
             //如果有则执行蓝图，否则执行lua
             var graph = await Jyx2ResourceHelper.LoadEventGraph(eventId);
@@ -237,8 +233,9 @@ public class GameEventManager : MonoBehaviour
             }
             else
             {
-                var eventLuaPath = "jygame/ka" + eventId;
-                Jyx2.LuaExecutor.Execute(eventLuaPath, OnFinishEvent);
+                var eventLuaPath = string.Format(RuntimeEnvSetup.CurrentModConfig.LuaFilePatten, eventId);
+                await Jyx2.LuaExecutor.Execute(eventLuaPath);
+                OnFinishEvent();
             }
         }
 

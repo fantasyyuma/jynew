@@ -12,17 +12,6 @@ public class GameOver : Jyx2_UIBase
     public Text date_text;
     public Text note_text;
     
-    // Start is called before the first frame update
-    void Start()
-    {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
 
     protected override void OnCreate()
     {
@@ -31,7 +20,7 @@ public class GameOver : Jyx2_UIBase
         name_text.text = GameRuntimeData.Instance.Player.Name;
         DateTime dt = DateTime.Now;
         date_text.text = dt.Subtract(GameRuntimeData.Instance.startDate).Days.ToString()+"天前";
-        note_text.text = dt.ToLongDateString().ToString()+"\n在地球某处\n当地失踪人口又增加了\n一例。。。";
+        note_text.text = dt.ToLongDateString().ToString()+"\n在地球某处\n当地失踪人口又增加了\n一例……";
     }
 
     public void InitUi()

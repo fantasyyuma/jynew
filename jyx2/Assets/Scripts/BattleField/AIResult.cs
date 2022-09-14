@@ -97,21 +97,14 @@ namespace Jyx2
 
         public double GetTotalScore()
         {
-            if(r1.team != r2.team)
-            {
-                float scale = 1;
-                if (damage >= r2.Hp)
-                    scale = 1.25f;
-                float attackTwiceScale = 1;
-                if (r1.Zuoyouhubo == 1)
-                    attackTwiceScale = 2;
+            float scale = 1;
+            if (damage >= r2.Hp)
+                scale = 1.25f;
+            float attackTwiceScale = 1;
+            if (r1.Zuoyouhubo == 1)
+                attackTwiceScale = 2;
 
-                return attackTwiceScale * scale * damage + attackTwiceScale * damageMp / 5 + poison;
-            }else if(r1.team == r2.team)
-            {
-                return depoison + heal;
-            }
-            return 0;
+            return attackTwiceScale * scale * damage + attackTwiceScale * damageMp / 5;
         }
 
         public bool IsDamage()
@@ -160,7 +153,7 @@ namespace Jyx2
                 //吸取内力逻辑
                 if (rst.addMp > 0)
                 {
-                    r1.MaxMp = Tools.Limit(r1.MaxMp + rst.addMaxMp, 0, GameConst.MAX_HPMP);
+                    r1.MaxMp = Tools.Limit(r1.MaxMp + rst.addMaxMp, 0, GameConst.MAX_ROLE_MP);
                     int finalMp = Tools.Limit(r1.Mp + rst.addMp, 0, r1.MaxMp);
                     int deltaMp = finalMp - r1.Mp;
                     if (deltaMp >= 0)

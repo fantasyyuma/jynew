@@ -14,9 +14,10 @@ using System.Collections.Generic;
 using System.Linq;
 using Cysharp.Threading.Tasks;
 using i18n.TranslatorDef;
+using Jyx2;
 using Jyx2.MOD;
+using Jyx2.ResourceManagement;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
 
 public enum UILayer 
 {
@@ -110,15 +111,19 @@ public class Jyx2_UIManager : MonoBehaviour
 
 	public async void GameStart()
     {
+        // await UniTask.WaitForEndOfFrame();
+        await RuntimeEnvSetup.Setup();
+        
+        
+        //TODO: 20220723 CG: 待调整Loading出现的逻辑，因为ResLoader的初始化很慢。但这里目前有前后依赖关系，必须在ResLoader初始化之后
         await ShowUIAsync(nameof(GameMainMenu));
-        //---------------------------------------------------------------------------
-        //await ShowUIAsync(nameof(GameInfoPanel),$"当前版本：{Application.version}");
-        //---------------------------------------------------------------------------
-        //特定位置的翻译【MainMenu右下角当前版本的翻译】
-        //---------------------------------------------------------------------------
-        await ShowUIAsync(nameof(GameInfoPanel), string.Format("当前版本：{0}".GetContent(nameof(Jyx2_UIManager)), Application.version));
-        //---------------------------------------------------------------------------
-        //---------------------------------------------------------------------------
+
+        string info = string.Format("<b>版本：{0} 模组：{1}</b>".GetContent(nameof(Jyx2_UIManager)),
+            Application.version,
+            RuntimeEnvSetup.CurrentModConfig.ModName);
+        
+        await ShowUIAsync(nameof(GameInfoPanel), info);
+        
         GraphicSetting.GlobalSetting.Execute();
     }
 
@@ -163,8 +168,9 @@ public class Jyx2_UIManager : MonoBehaviour
             _loadingUIParams[uiName] = allParams;
             string uiPath = string.Format(GameConst.UI_PREFAB_PATH, uiName);
 
-            var prefab = await MODLoader.LoadAsset<GameObject>(uiPath);
+            var prefab = await ResLoader.LoadAsset<GameObject>(uiPath);
             var go = Instantiate(prefab);
+            
             OnUILoaded(go);
         }
     }

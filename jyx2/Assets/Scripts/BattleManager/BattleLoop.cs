@@ -190,7 +190,7 @@ namespace Jyx2.Battle
             role.View.Run();
 
             //播放移动
-            await role.View.transform.DOPath(path.ToArray(), path.Count * 0.2f).SetLookAt(0).SetEase(Ease.Linear);
+            await role.View.transform.DOPath(path.ToArray(), path.Count * 0.15f).SetLookAt(0).SetEase(Ease.Linear);
 
             //idle动画
             role.View.Idle();
@@ -295,6 +295,9 @@ namespace Jyx2.Battle
             else if (itemType == Jyx2ItemType.Anqi)
                 clip = GlobalAssetConfig.Instance.anqiClip; //选择使用暗器的动作
 
+            //显示使用道具的名字
+            role.View.ShowBattleText(item.Name, Color.yellow);
+            
             //如果配置了动作，则先播放动作
             if (clip != null)
             {
